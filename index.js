@@ -35,20 +35,20 @@ class UploadMovie extends EventEmitter {
 
       this.on('upload_chunk', async (chunk) => {
         try {
+          const res = await this._uploadChunk({
+            id: args.id,
+            token: args.token
+          }, upload_session_id, this.start_offset, chunk)
+          this.start_offset = res.start_offset;
+          this.end_offset = res.end_offset;
           if (this.start_offset === this.end_offset) {
-            const { success } = await this._apiFinish({
+            const response = await this._apiFinish({
               id: args.id,
               token: args.token
             }, upload_session_id)
-            this.emit('done', success, video_id);
+            this.emit('done', response, video_id);
           } else {
-            const res = await this._uploadChunk({
-              id: args.id,
-              token: args.token
-            }, upload_session_id, this.start_offset, chunk)
-            this.start_offset = res.start_offset;
-            this.end_offset = res.end_offset;
-            this.emit('upload', (this.end_offset * 100) / args.videoSize)
+            this.emit('upload', (this.end_offset * 100) / args.videoSize);
             this.emit('slice_chunk', this.start_offset, this.end_offset);
           }
         } catch (err) {
