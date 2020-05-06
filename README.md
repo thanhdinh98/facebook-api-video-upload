@@ -10,7 +10,7 @@ Tested on OS X and Linux.
 ## Usage
 ```javascript
 const fs = require('fs');
-const MovieUpload = require('facebook-api-video-upload');
+const MovieUpload = require('fb-upload-video-api');
 
 const emitter = new MovieUpload();
 
@@ -20,30 +20,30 @@ const args = {
   videoSize: size    // integer
 };
 
-// Recieve start_offset and end_offset of facebook init and upload_chunk api
-emitter.on('slice_chunk', (start, end)=>{
-  const chunkStream = fs.createReadStream('./fixture.mp4', {
-    start: start, //integer
-    end: end     // integer
-  });
-  // Emit chunk to upload
-  emitter.emit('chunk', chunkStream)
-})
+(async ()=>{
+  try{
+    // Recieve start_offset and end_offset of facebook init and upload_chunk api
+    emitter.on('slice_chunk', (start, end)=>{
+      const chunkStream = fs.createReadStream('./fixture.mp4', {
+        start: Number(start), //integer
+        end: Number(end)     // integer
+      });
+      // Emit chunk to upload
+      emitter.emit('chunk', chunkStream)
+    })
 
-// Show percent of uploading
-emitter.on('upload', (percent)=>{
-  console.log(percent);
-})
+    // Show percent of uploading
+    emitter.on('upload', (percent)=>{
+      console.log(percent);
+    })
 
-emitter.on('done', (success, video_id)=>{
-  console.log(video_id);
-})
+    const video_id = await emitter.uploadToFB(args);
+    console.log(video_id);
 
-emitter.on('error', (err)=>{
-  console.log(err);
-})
-
-emitter.uploadToFB(args);
+  }catch(err){
+    console.error(err)
+  }
+})()
 ```
 
 ## Features

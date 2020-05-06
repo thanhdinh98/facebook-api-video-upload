@@ -11,55 +11,60 @@ class UploadMovie extends EventEmitter {
     this.retryMax = 10
   }
 
-  async uploadToFB(args) {
-    try {
-      const {
+  uploadToFB(args) {
+    return new Promise((resolve, reject) => {
+      this._appInit({
+        id: args.id,
+        token: args.token
+      }, args.videoSize).then(({
         video_id,
         start_offset,
         end_offset,
-        upload_session_id } = await this._appInit({ id: args.id, token: args.token }, args.videoSize);
+        upload_session_id
+      }) => {
+        this.start_offset = start_offset;
+        this.end_offset = end_offset;
 
-      this.start_offset = start_offset;
-      this.end_offset = end_offset;
+        this.on('chunk', (stream) => {
+          const bufs = [];
 
-      this.on('chunk', (stream) => {
-        const bufs = [];
-        stream.on('data', (data) => {
-          bufs.push(data);
+          stream.on('data', (data) => {
+            bufs.push(data);
+          })
+
+          stream.on('end', () => {
+            this.chunk = Buffer.concat(bufs);
+            this.emit('upload_chunk', this.chunk);
+          })
         })
-        stream.on('end', () => {
-          this.chunk = Buffer.concat(bufs);
-          this.emit('upload_chunk', this.chunk);
-        })
-      })
 
-      this.on('upload_chunk', async (chunk) => {
-        try {
-          const res = await this._uploadChunk({
-            id: args.id,
-            token: args.token
-          }, upload_session_id, this.start_offset, chunk)
-          this.start_offset = res.start_offset;
-          this.end_offset = res.end_offset;
-          if (this.start_offset === this.end_offset) {
-            const response = await this._apiFinish({
-              id: args.id,
-              token: args.token
-            }, upload_session_id)
-            this.emit('done', response, video_id);
-          } else {
-            this.emit('upload', (this.end_offset * 100) / args.videoSize);
-            this.emit('slice_chunk', this.start_offset, this.end_offset);
+        this.on('upload_chunk', async (chunk) => {
+          try {
+            const res = await this._uploadChunk(
+              { id: args.id, token: args.token },
+              upload_session_id, this.start_offset, chunk)
+
+            this.start_offset = res.start_offset;
+            this.end_offset = res.end_offset;
+
+            if (this.start_offset === this.end_offset) {
+              const response = await this._apiFinish(
+                { id: args.id, token: args.token }, upload_session_id)
+              resolve(video_id)
+
+            } else {
+              this.emit('upload', (this.end_offset * 100) / args.videoSize);
+              this.emit('slice_chunk', this.start_offset, this.end_offset);
+            }
+
+          } catch (err) {
+            reject(err)
           }
-        } catch (err) {
-          this.emit('error', err);
-        }
-      });
+        })
 
-      this.emit('slice_chunk', this.start_offset, this.end_offset);
-    } catch (err) {
-      this.emit('error', err);
-    }
+        this.emit('slice_chunk', this.start_offset, this.end_offset);
+      }).catch(err => reject(err))
+    })
   }
 
   _appInit({ id, token }, videoSize) {
